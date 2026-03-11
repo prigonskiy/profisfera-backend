@@ -44,42 +44,82 @@ def get_category_info_model(cat_id: int):
         raise HTTPException(status_code=404, detail="Category not found")
     return {"info_model_json": category.info_model_json}
 
-# --- Инициализация базы начальными данными (Seed) ---
+# --- Инициализация базы начальными данными (УМНАЯ МИГРАЦИЯ) ---
 def seed_db_from_json():
     db = SessionLocal()
-    if db.query(Product).count() == 0 and os.path.exists("products.json"):
-        with open("products.json", "r", encoding="utf-8") as f:
-            data = json.load(f)
-            
-            brands = set(item.get("brand", "Без бренда") for item in data)
-            brand_map = {}
-            for b_name in brands:
-                manuf = Manufacturer(name=b_name)
-                db.add(manuf)
-                db.commit()
-                db.refresh(manuf)
-                brand_map[b_name] = manuf.id
+    # Если база уже заполнена - ничего не делаем
+    if db.query(Product).count() > 0:
+        db.close()
+        return
 
-            for item in data:
-                p_id = int(item.pop("id", 0))
-                p_name = item.pop("name", "")
-                p_brand_name = item.pop("brand", "Без бренда")
-                p_price = item.pop("price", "")
-                
-                old_img = item.pop("image", "")
-                images_arr = [{"orig": old_img, "thumb": old_img}] if old_img else []
-                
-                p_short = item.pop("shortDesc", "")
-                p_full = item.pop("fullDesc", "")
-                other = json.dumps(item, ensure_ascii=False)
-                
-                db_product = Product(
-                    id=p_id, name=p_name, manufacturer_id=brand_map[p_brand_name], 
-                    price=str(p_price), images_json=json.dumps(images_arr), 
-                    shortDesc=p_short, fullDesc=p_full, other_data=other
-                )
-                db.add(db_product)
+    if not os.path.exists("products.json"):
+        db.close()
+        return
+
+    with open("products.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # 1. Создаем Бренды
+    brands = set(item.get("brand", "Без бренда") for item in data)
+    brand_map = {}
+    for b_name in brands:
+        manuf = Manufacturer(name=b_name)
+        db.add(manuf)
         db.commit()
+        db.refresh(manuf)
+        brand_map[b_name] = manuf.id
+
+    # 2. Умное создание дерева категорий
+    cat_map = {}
+    def get_or_create_cat(name, parent_id):
+        if not name: return None
+        key = f"{parent_id}_{name}"
+        if key not in cat_map:
+            cat = Category(name=name, parent_id=parent_id)
+            db.add(cat)
+            db.commit()
+            db.refresh(cat)
+            cat_map[key] = cat.id
+        return cat_map[key]
+
+    # 3. Переносим товары и их характеристики
+    # Это список всех специфических ключей, которые были в вашем JSON
+    specific_keys = ['series', 'colors', 'appointment', 'consistency', 'viscosity', 'curing', 'materialType', 'packaging', 'selfEtching', 'hardness', 'purposes', 'specializations', 'groupId', 'groupFamilyName', 'deliveryType', 'optionName']
+
+    for item in data:
+        # Выстраиваем цепочку категорий в базе
+        c1_id = get_or_create_cat(item.get("cat1"), None)
+        c2_id = get_or_create_cat(item.get("cat2"), c1_id) if c1_id else None
+        c3_id = get_or_create_cat(item.get("cat3"), c2_id) if c2_id else None
+        
+        # Товар привязываем к самой глубокой из доступных категорий
+        final_cat_id = c3_id or c2_id or c1_id
+
+        # Собираем специфические атрибуты
+        attrs = {}
+        for k in specific_keys:
+            if k in item and item[k]:
+                attrs[k] = item[k]
+                
+        p_id = int(item.get("id", 0))
+        old_img = item.get("image", "")
+        images_arr = [{"orig": old_img, "thumb": old_img}] if old_img else []
+
+        db_product = Product(
+            id=p_id,
+            name=item.get("name", ""),
+            sku=item.get("partNumber", ""),
+            price=str(item.get("price", "")),
+            manufacturer_id=brand_map.get(item.get("brand", "Без бренда")),
+            category_id=final_cat_id,
+            images_json=json.dumps(images_arr),
+            shortDesc=item.get("shortDesc", ""),
+            fullDesc=item.get("fullDesc", ""),
+            attributes_json=json.dumps(attrs, ensure_ascii=False) # Магия здесь!
+        )
+        db.add(db_product)
+    
+    db.commit()
     db.close()
 
 @app.on_event("startup")
@@ -93,22 +133,21 @@ def get_products():
     products = db.query(Product).all()
     
     result = []
-    DOMAIN = "https://185.185.71.149"
+    DOMAIN = "https://185.185.71.149" # При локальном тесте можно закомментировать использование DOMAIN ниже
     
     for p in products:
-        item = json.loads(p.other_data) if p.other_data else {}
+        item = {} # Создаем с чистого листа, без other_data
         item["id"] = p.id
         item["name"] = p.name
-        item["sku"] = p.sku  # Не забываем отдавать артикул
+        item["partNumber"] = p.sku # Транслируем артикул для фронтенда
         item["brand"] = p.manufacturer.name if p.manufacturer else "Без бренда"
         item["price"] = p.price
         
-        # МАГИЯ ДЕРЕВА КАТЕГОРИЙ (Собираем cat1, cat2, cat3 для фронтенда)
+        # Собираем путь категорий
         if p.category:
             cat_tree = []
             curr_cat = p.category
-            visited = set() # Защита от бесконечного цикла
-            
+            visited = set()
             while curr_cat and curr_cat.id not in visited:
                 visited.add(curr_cat.id)
                 cat_tree.insert(0, curr_cat.name)
@@ -118,7 +157,7 @@ def get_products():
             if len(cat_tree) > 1: item["cat2"] = cat_tree[1]
             if len(cat_tree) > 2: item["cat3"] = cat_tree[2]
         
-        # Динамические характеристики
+        # Распаковываем специфические свойства и специализации
         if p.attributes_json:
             try:
                 attrs = json.loads(p.attributes_json)

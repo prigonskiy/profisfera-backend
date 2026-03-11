@@ -50,7 +50,5 @@ class Product(Base):
     # 3. СПЕЦИФИЧЕСКИЕ ХАРАКТЕРИСТИКИ
     attributes_json = Column(Text, default="{}") 
     
-    other_data = Column(Text) # Для старых данных из JSON
-    
     manufacturer = relationship("Manufacturer", back_populates="products")
     category = relationship("Category", back_populates="products")
