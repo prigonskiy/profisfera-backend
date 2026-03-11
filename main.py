@@ -96,12 +96,28 @@ def get_products():
     DOMAIN = "https://185.185.71.149"
     
     for p in products:
+        # 1. Берем старые данные (если есть)
         item = json.loads(p.other_data) if p.other_data else {}
+        
+        # 2. Добавляем базовые поля
         item["id"] = p.id
         item["name"] = p.name
         item["brand"] = p.manufacturer.name if p.manufacturer else "Без бренда"
         item["price"] = p.price
         
+        # Передаем название категории (чтобы фронтенд мог строить дерево)
+        if p.category:
+            item["category_name"] = p.category.name
+        
+        # 3. Распаковываем наши НОВЫЕ динамические характеристики!
+        if p.attributes_json:
+            try:
+                attrs = json.loads(p.attributes_json)
+                item.update(attrs) # Добавляем все специфические свойства прямо в товар
+            except:
+                pass
+        
+        # 4. Обрабатываем картинки
         images_list = json.loads(p.images_json) if p.images_json else []
         for img in images_list:
             if img["orig"].startswith("/static/"): img["orig"] = DOMAIN + img["orig"]
@@ -110,6 +126,7 @@ def get_products():
         item["images"] = images_list 
         item["shortDesc"] = p.shortDesc
         item["fullDesc"] = p.fullDesc
+        
         result.append(item)
         
     db.close()
