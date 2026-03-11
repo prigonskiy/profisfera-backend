@@ -19,12 +19,14 @@ class Category(Base):
     __tablename__ = "categories"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    parent_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
-    # Сюда в админке мы будем писать JSON вроде: [{"name":"color", "label":"Цвет", "type":"string"}]
+    # ДОБАВИЛИ ondelete="SET NULL"
+    parent_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    
     info_model_json = Column(Text, default="[]") 
     
-    parent = relationship("Category", remote_side=[id], backref="subcategories")
+    # ИЗМЕНИЛИ [id] на строковое "Category.id"
+    parent = relationship("Category", remote_side="Category.id", backref="subcategories")
     products = relationship("Product", back_populates="category")
     
     def __str__(self):
@@ -39,7 +41,7 @@ class Product(Base):
     sku = Column(String)
     price = Column(String)
     manufacturer_id = Column(Integer, ForeignKey("manufacturers.id"), nullable=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     
     # 2. МЕДИА И ДОКУМЕНТЫ
     images_json = Column(Text, default="[]") 

@@ -96,28 +96,33 @@ def get_products():
     DOMAIN = "https://185.185.71.149"
     
     for p in products:
-        # 1. Берем старые данные (если есть)
         item = json.loads(p.other_data) if p.other_data else {}
-        
-        # 2. Добавляем базовые поля
         item["id"] = p.id
         item["name"] = p.name
+        item["sku"] = p.sku  # Не забываем отдавать артикул
         item["brand"] = p.manufacturer.name if p.manufacturer else "Без бренда"
         item["price"] = p.price
         
-        # Передаем название категории (чтобы фронтенд мог строить дерево)
+        # МАГИЯ ДЕРЕВА КАТЕГОРИЙ (Собираем cat1, cat2, cat3 для фронтенда)
         if p.category:
-            item["category_name"] = p.category.name
+            cat_tree = []
+            curr_cat = p.category
+            while curr_cat:
+                cat_tree.insert(0, curr_cat.name)  # Добавляем в начало списка
+                curr_cat = curr_cat.parent
+                
+            if len(cat_tree) > 0: item["cat1"] = cat_tree[0]
+            if len(cat_tree) > 1: item["cat2"] = cat_tree[1]
+            if len(cat_tree) > 2: item["cat3"] = cat_tree[2]
         
-        # 3. Распаковываем наши НОВЫЕ динамические характеристики!
+        # Динамические характеристики
         if p.attributes_json:
             try:
                 attrs = json.loads(p.attributes_json)
-                item.update(attrs) # Добавляем все специфические свойства прямо в товар
-            except:
-                pass
+                item.update(attrs)
+            except: pass
         
-        # 4. Обрабатываем картинки
+        # Обработка картинок
         images_list = json.loads(p.images_json) if p.images_json else []
         for img in images_list:
             if img["orig"].startswith("/static/"): img["orig"] = DOMAIN + img["orig"]
