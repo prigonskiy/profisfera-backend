@@ -178,3 +178,72 @@ def get_products():
         
     db.close()
     return result
+
+# --- ВРЕМЕННЫЙ МАРШРУТ ДЛЯ АВТОГЕНЕРАЦИИ ИНФОМОДЕЛЕЙ ---
+@app.get("/api/admin/auto-generate-models")
+def auto_generate_models():
+    db = SessionLocal()
+    categories = db.query(Category).all()
+    
+    # Словарь перевода ваших ключей на нормальный русский (мы брали их из state.js)
+    KNOWN_ATTRS = {
+        'series': 'Серия',
+        'colors': 'Цвет',
+        'appointment': 'Назначение',
+        'consistency': 'Консистенция',
+        'viscosity': 'Вязкость',
+        'curing': 'Отверждение',
+        'materialType': 'Тип материала',
+        'packaging': 'Форма выпуска',
+        'selfEtching': 'Самопротравливающийся',
+        'hardness': 'Твёрдость',
+        'purposes': 'Предназначение',
+        'specializations': 'Специализации',
+        'groupId': 'ID Группы',
+        'groupFamilyName': 'Название семейства',
+        'deliveryType': 'Тип поставки',
+        'optionName': 'Название опции'
+    }
+    
+    updated_count = 0
+    
+    for cat in categories:
+        # Ищем все товары, принадлежащие этой категории
+        products = db.query(Product).filter(Product.category_id == cat.id).all()
+        if not products:
+            continue
+            
+        # Собираем все уникальные ключи из товаров этой категории
+        cat_attrs = set()
+        for p in products:
+            if p.attributes_json:
+                try:
+                    attrs = json.loads(p.attributes_json)
+                    for k, v in attrs.items():
+                        if v: # Берем ключ, только если там есть какие-то данные
+                            cat_attrs.add(k)
+                except:
+                    pass
+        
+        # Если нашли характеристики — собираем из них Инфомодель
+        if cat_attrs:
+            info_model = []
+            for k in cat_attrs:
+                label = KNOWN_ATTRS.get(k, k) # Если не знаем перевод, оставляем английский ключ
+                info_model.append({
+                    "name": k,
+                    "label": label,
+                    "type": "string", # По умолчанию делаем текстовым полем
+                    "options": []
+                })
+            
+            cat.info_model_json = json.dumps(info_model, ensure_ascii=False)
+            updated_count += 1
+            
+    db.commit()
+    db.close()
+    
+    return {
+        "status": "Успешно!", 
+        "message": f"Инфомодели сгенерированы для {updated_count} категорий."
+    }
