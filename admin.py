@@ -8,7 +8,7 @@ from wtforms import StringField, FileField
 from sqladmin import ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
-from models import Manufacturer, Product
+from models import Manufacturer, Product, Category
 
 class AdminAuth(AuthenticationBackend):
     async def login(self, request: Request) -> bool:
@@ -126,6 +126,108 @@ class DragDropGalleryWidget:
 class DragDropGalleryField(StringField):
     widget = DragDropGalleryWidget()
 
+# ==========================================
+# МАГИЯ ДИНАМИЧЕСКИХ АТРИБУТОВ (ИНФОМОДЕЛЬ)
+# ==========================================
+class DynamicAttributesWidget:
+    def __call__(self, field, **kwargs):
+        existing_data = field.object_data if field.object_data else "{}"
+        
+        html = """
+        <div id="dynamic-attributes-container" style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px dashed #bdc3c7; margin-top: 10px;">
+            <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 15px;">Специфические характеристики (выберите категорию, чтобы загрузить поля):</p>
+            <div id="dynamic-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;"></div>
+            <input type="hidden" id="__FIELD_ID__" name="__FIELD_NAME__" value='__EXISTING_DATA__'>
+        </div>
+        
+        <script>
+            (function() {
+                const hiddenInput = document.getElementById('__FIELD_ID__');
+                const container = document.getElementById('dynamic-fields');
+                const categorySelect = document.getElementById('category'); // SQLAdmin автоматически дает такое ID полю отношения
+                
+                let currentValues = {};
+                try { currentValues = JSON.parse(hiddenInput.value || '{}'); } catch(e) {}
+
+                async function loadFields(categoryId) {
+                    container.innerHTML = '<span style="color:#95a5a6; grid-column: 1/-1;">Загрузка полей...</span>';
+                    if (!categoryId || categoryId === '__None') {
+                        container.innerHTML = '<span style="color:#95a5a6; grid-column: 1/-1;">Сначала выберите категорию выше ☝️</span>';
+                        return;
+                    }
+                    try {
+                        // Запрашиваем инфомодель категории с нашего API
+                        const resp = await fetch('/api/admin/categories/' + categoryId);
+                        const cat = await resp.json();
+                        let model = [];
+                        try { model = JSON.parse(cat.info_model_json || '[]'); } catch(e) {}
+                        
+                        if (model.length === 0) {
+                            container.innerHTML = '<span style="color:#95a5a6; grid-column: 1/-1;">У этой категории нет специфических характеристик.</span>';
+                            return;
+                        }
+                        
+                        container.innerHTML = '';
+                        model.forEach(field => {
+                            const val = currentValues[field.name] || '';
+                            const div = document.createElement('div');
+                            
+                            let inputHtml = '';
+                            if (field.type === 'select' && field.options) {
+                                let options = field.options.map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('');
+                                inputHtml = `<select class="dyn-input form-control" data-name="${field.name}"><option value="">-- Выберите --</option>${options}</select>`;
+                            } else {
+                                inputHtml = `<input type="text" class="dyn-input form-control" data-name="${field.name}" value="${val}">`;
+                            }
+                            
+                            div.innerHTML = `<label style="display:block; font-size:13px; font-weight:bold; color:#2c3e50; margin-bottom:5px;">${field.label}</label>${inputHtml}`;
+                            container.appendChild(div);
+                        });
+                        
+                        // Слушаем изменения во всех сгенерированных полях
+                        document.querySelectorAll('.dyn-input').forEach(el => {
+                            el.addEventListener('input', updateHidden);
+                            el.addEventListener('change', updateHidden);
+                        });
+                    } catch (e) {
+                        container.innerHTML = '<span style="color:#e74c3c; grid-column: 1/-1;">Ошибка загрузки инфомодели</span>';
+                    }
+                }
+
+                function updateHidden() {
+                    const newVals = {};
+                    document.querySelectorAll('.dyn-input').forEach(el => {
+                        if (el.value.trim() !== '') newVals[el.dataset.name] = el.value.trim();
+                    });
+                    hiddenInput.value = JSON.stringify(newVals);
+                }
+
+                if (categorySelect) {
+                    categorySelect.addEventListener('change', (e) => loadFields(e.target.value));
+                    loadFields(categorySelect.value); // Загружаем при открытии страницы
+                }
+            })();
+        </script>
+        """
+        html = html.replace("__FIELD_ID__", field.id).replace("__FIELD_NAME__", field.name)
+        safe_data = existing_data.replace("'", "&#39;")
+        html = html.replace("__EXISTING_DATA__", safe_data)
+        return Markup(html)
+
+class DynamicAttributesField(StringField):
+    widget = DynamicAttributesWidget()
+
+# ==========================================
+# НАСТРОЙКИ АДМИНКИ (VIEWS)
+# ==========================================
+class CategoryAdmin(ModelView, model=Category):
+    column_list = [Category.id, Category.name, Category.parent]
+    column_searchable_list = [Category.name]
+    form_columns = [Category.name, Category.parent, Category.info_model_json]
+    name = "Категория"
+    name_plural = "Категории"
+    icon = "fa-solid fa-folder-tree"
+
 class ManufacturerAdmin(ModelView, model=Manufacturer):
     column_list = [Manufacturer.id, Manufacturer.logo, Manufacturer.name, Manufacturer.website]
     column_sortable_list = [Manufacturer.id, Manufacturer.name]
@@ -154,16 +256,24 @@ class ManufacturerAdmin(ModelView, model=Manufacturer):
                 data.pop("logo", None)
 
 class ProductAdmin(ModelView, model=Product):
-    column_list = [Product.id, Product.images_json, Product.name, Product.manufacturer, Product.price]
+    column_list = [Product.id, Product.images_json, Product.name, Product.category, Product.manufacturer, Product.price]
     column_sortable_list = [Product.id, Product.name, Product.price]
-    column_searchable_list = [Product.name]
-    column_details_exclude_list = [Product.other_data]
-    form_columns = [Product.id, Product.name, Product.manufacturer, Product.price, Product.images_json, Product.shortDesc, Product.fullDesc]
+    column_searchable_list = [Product.name, Product.sku]
+    
+    # ВАЖНО: Добавили Product.category и Product.attributes_json
+    form_columns = [Product.name, Product.sku, Product.category, Product.manufacturer, Product.price, Product.images_json, Product.attributes_json, Product.shortDesc, Product.fullDesc]
+    
     name = "Товар"
+    name_plural = "Товары"
     icon = "fa-solid fa-box"
     create_template = "custom_create.html"
     edit_template = "custom_edit.html"
-    form_overrides = dict(images_json=DragDropGalleryField)
+    
+    # Привязываем наши виджеты
+    form_overrides = dict(
+        images_json=DragDropGalleryField,
+        attributes_json=DynamicAttributesField
+    )
 
     column_formatters = {
         Product.images_json: lambda m, a: Markup(f'<img src="{json.loads(m.images_json)[0]["thumb"]}" style="max-height: 40px;">') if m.images_json and json.loads(m.images_json) else ""

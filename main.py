@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqladmin import Admin
@@ -7,8 +7,8 @@ import os
 
 # Импортируем из наших новых модулей
 from database import engine, SessionLocal, Base
-from models import Manufacturer, Product
-from admin import authentication_backend, ManufacturerAdmin, ProductAdmin
+from models import Manufacturer, Product, Category
+from admin import authentication_backend, ManufacturerAdmin, ProductAdmin, CategoryAdmin
 
 # Создаем таблицы в БД (если их еще нет)
 Base.metadata.create_all(bind=engine)
@@ -31,8 +31,18 @@ app.add_middleware(
 
 # Подключаем админку
 admin = Admin(app, engine, authentication_backend=authentication_backend, templates_dir="templates")
+admin.add_view(CategoryAdmin) # <--- ДОБАВИЛИ КАТЕГОРИИ
 admin.add_view(ManufacturerAdmin)
 admin.add_view(ProductAdmin)
+
+@app.get("/api/admin/categories/{cat_id}")
+def get_category_info_model(cat_id: int):
+    db = SessionLocal()
+    category = db.query(Category).filter(Category.id == cat_id).first()
+    db.close()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"info_model_json": category.info_model_json}
 
 # --- Инициализация базы начальными данными (Seed) ---
 def seed_db_from_json():
