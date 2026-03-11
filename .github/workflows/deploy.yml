@@ -19,7 +19,7 @@ jobs:
           # password: ${{ secrets.PASSWORD }}
           # Если используете ключ, раскомментируйте строку ниже и закомментируйте password
           key: ${{ secrets.SSH_KEY }}
-          source: "main.py,requirements.txt,templates/"
+          source: "main.py,models.py,admin.py,database.py,requirements.txt,templates/"
           target: "/root/profisfera-backend" # ЗАМЕНИТЕ на реальный путь до папки на сервере!
           overwrite: true
 
