@@ -19,14 +19,12 @@ class Category(Base):
     __tablename__ = "categories"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    
-    # ДОБАВИЛИ ondelete="SET NULL"
     parent_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     
     info_model_json = Column(Text, default="[]") 
     
-    # ИЗМЕНИЛИ [id] на строковое "Category.id"
-    parent = relationship("Category", remote_side="Category.id", backref="subcategories")
+    # ВОТ ЗДЕСЬ ДОБАВЛЯЕМ post_update=True
+    parent = relationship("Category", remote_side="Category.id", backref="subcategories", post_update=True)
     products = relationship("Product", back_populates="category")
     
     def __str__(self):
