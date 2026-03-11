@@ -107,8 +107,11 @@ def get_products():
         if p.category:
             cat_tree = []
             curr_cat = p.category
-            while curr_cat:
-                cat_tree.insert(0, curr_cat.name)  # Добавляем в начало списка
+            visited = set() # Защита от бесконечного цикла
+            
+            while curr_cat and curr_cat.id not in visited:
+                visited.add(curr_cat.id)
+                cat_tree.insert(0, curr_cat.name)
                 curr_cat = curr_cat.parent
                 
             if len(cat_tree) > 0: item["cat1"] = cat_tree[0]
