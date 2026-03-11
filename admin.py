@@ -218,6 +218,145 @@ class DynamicAttributesField(StringField):
     widget = DynamicAttributesWidget()
 
 # ==========================================
+# ВИЗУАЛЬНЫЙ КОНСТРУКТОР ИНФОМОДЕЛИ (ДЛЯ КАТЕГОРИЙ)
+# ==========================================
+class InfoModelBuilderWidget:
+    def __call__(self, field, **kwargs):
+        existing_data = field.object_data if field.object_data else "[]"
+        
+        html = """
+        <div id="im-container-__FIELD_ID__" style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e1e5e8;">
+            <p style="color: #34495e; font-weight: bold; margin-bottom: 15px;">Конструктор характеристик:</p>
+            
+            <div id="im-rows-__FIELD_ID__" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;"></div>
+            
+            <button type="button" onclick="imAddRow___FIELD_ID__()" style="padding: 8px 15px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">+ Добавить характеристику</button>
+            <input type="hidden" id="__FIELD_ID__" name="__FIELD_NAME__" value='__EXISTING_DATA__'>
+        </div>
+        
+        <script>
+            (function() {
+                const hiddenInput = document.getElementById('__FIELD_ID__');
+                const rowsDiv = document.getElementById('im-rows-__FIELD_ID__');
+                let data = [];
+                try { data = JSON.parse(hiddenInput.value || '[]'); } catch(e) {}
+
+                // Функция отрисовки интерфейса
+                window.imRender___FIELD_ID__ = function() {
+                    rowsDiv.innerHTML = '';
+                    if (data.length === 0) {
+                        rowsDiv.innerHTML = '<span style="color: #95a5a6; font-size: 13px;">У этой категории пока нет специфических характеристик.</span>';
+                    }
+                    
+                    data.forEach((item, index) => {
+                        const row = document.createElement('div');
+                        row.style.cssText = 'display: flex; gap: 10px; align-items: center; background: #fff; padding: 12px; border: 1px solid #ecf0f1; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);';
+
+                        // 1. Поле "Название для людей" (Label)
+                        const lblInput = document.createElement('input');
+                        lblInput.type = 'text';
+                        lblInput.placeholder = 'Название (напр. Цвет)';
+                        lblInput.className = 'form-control';
+                        lblInput.style.flex = '1';
+                        lblInput.value = item.label || '';
+                        lblInput.oninput = (e) => { data[index].label = e.target.value; updateHidden(); };
+
+                        // 2. Поле "Ключ базы данных" (Name)
+                        const nameInput = document.createElement('input');
+                        nameInput.type = 'text';
+                        nameInput.placeholder = 'Ключ (напр. color)';
+                        nameInput.className = 'form-control';
+                        nameInput.style.flex = '1';
+                        nameInput.value = item.name || '';
+                        nameInput.oninput = (e) => { 
+                            // Запрещаем пробелы и русские буквы в ключе
+                            let val = e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+                            e.target.value = val;
+                            data[index].name = val; 
+                            updateHidden(); 
+                        };
+
+                        // 3. Выбор типа поля
+                        const typeSelect = document.createElement('select');
+                        typeSelect.className = 'form-control';
+                        typeSelect.style.width = '120px';
+                        const optionsHTML = `
+                            <option value="string" ${item.type === 'string' ? 'selected' : ''}>Текст</option>
+                            <option value="select" ${item.type === 'select' ? 'selected' : ''}>Список</option>
+                        `;
+                        typeSelect.innerHTML = optionsHTML;
+                        typeSelect.onchange = (e) => { 
+                            data[index].type = e.target.value; 
+                            if (e.target.value !== 'select') data[index].options = [];
+                            window.imRender___FIELD_ID__(); 
+                            updateHidden(); 
+                        };
+
+                        row.appendChild(lblInput);
+                        row.appendChild(nameInput);
+                        row.appendChild(typeSelect);
+
+                        // 4. Варианты списка (если выбран тип "Список")
+                        if (item.type === 'select') {
+                            const optInput = document.createElement('input');
+                            optInput.type = 'text';
+                            optInput.placeholder = 'Варианты через запятую (Красный, Белый)';
+                            optInput.className = 'form-control';
+                            optInput.style.flex = '2';
+                            optInput.value = (item.options || []).join(', ');
+                            optInput.oninput = (e) => { 
+                                data[index].options = e.target.value.split(',').map(s => s.trim()).filter(s => s !== ''); 
+                                updateHidden(); 
+                            };
+                            row.appendChild(optInput);
+                        }
+
+                        // 5. Кнопка удаления
+                        const delBtn = document.createElement('button');
+                        delBtn.innerHTML = '🗑️';
+                        delBtn.type = 'button';
+                        delBtn.style.cssText = 'background: none; border: none; font-size: 18px; cursor: pointer; opacity: 0.6; transition: 0.2s; padding: 0 5px;';
+                        delBtn.onmouseover = () => delBtn.style.opacity = '1';
+                        delBtn.onmouseout = () => delBtn.style.opacity = '0.6';
+                        delBtn.onclick = () => { 
+                            if(confirm('Удалить характеристику?')) {
+                                data.splice(index, 1); 
+                                window.imRender___FIELD_ID__(); 
+                                updateHidden(); 
+                            }
+                        };
+                        row.appendChild(delBtn);
+
+                        rowsDiv.appendChild(row);
+                    });
+                };
+
+                // Добавление новой строки
+                window.imAddRow___FIELD_ID__ = function() {
+                    data.push({ name: '', label: '', type: 'string', options: [] });
+                    window.imRender___FIELD_ID__();
+                    updateHidden();
+                };
+
+                // Синхронизация с базой
+                function updateHidden() {
+                    hiddenInput.value = JSON.stringify(data);
+                }
+
+                // Первичная отрисовка
+                window.imRender___FIELD_ID__();
+            })();
+        </script>
+        """
+        html = html.replace("__FIELD_ID__", field.id).replace("__FIELD_NAME__", field.name)
+        safe_data = existing_data.replace("'", "&#39;")
+        html = html.replace("__EXISTING_DATA__", safe_data)
+        return Markup(html)
+
+class InfoModelBuilderField(StringField):
+    widget = InfoModelBuilderWidget()
+
+# ==========================================
 # НАСТРОЙКИ АДМИНКИ (VIEWS)
 # ==========================================
 class CategoryAdmin(ModelView, model=Category):
@@ -227,12 +366,14 @@ class CategoryAdmin(ModelView, model=Category):
     name = "Категория"
     name_plural = "Категории"
     icon = "fa-solid fa-folder-tree"
+    form_overrides = dict(info_model_json=InfoModelBuilderField)
 
 class ManufacturerAdmin(ModelView, model=Manufacturer):
     column_list = [Manufacturer.id, Manufacturer.logo, Manufacturer.name, Manufacturer.website]
     column_sortable_list = [Manufacturer.id, Manufacturer.name]
     form_columns = [Manufacturer.name, Manufacturer.logo, Manufacturer.website, Manufacturer.description]
     name = "Производитель"
+    name_plural = "Производители"
     icon = "fa-solid fa-industry"
     create_template = "custom_create.html"
     edit_template = "custom_edit.html"
