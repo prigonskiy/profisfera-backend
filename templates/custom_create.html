@@ -1,0 +1,20 @@
+{% extends "sqladmin/create.html" %}
+
+{% block form %}
+<form action="{{ request.url }}" method="POST" enctype="multipart/form-data">
+    {% for field in form %}
+        <div class="form-group">
+            {{ field.label(class="form-label") }}
+            {{ field(class="form-control") }}
+            {% if field.errors %}
+                <ul class="text-danger">
+                {% for error in field.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+</form>
+{% endblock %}
