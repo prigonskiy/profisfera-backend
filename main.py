@@ -13,7 +13,7 @@ import math
 # Импортируем из наших новых модулей
 from database import engine, SessionLocal, Base
 from models import Manufacturer, Product, Category
-from admin import authentication_backend, ManufacturerAdmin, ProductAdmin, CategoryAdmin
+from admin import authentication_backend, ProductAdmin, CategoryAdmin, ManufacturerAdmin, ProductFamilyAdmin
 
 # Создаем таблицы в БД (если их еще нет)
 Base.metadata.create_all(bind=engine)

@@ -8,7 +8,7 @@ from wtforms import StringField, FileField
 from sqladmin import ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
-from models import Manufacturer, Product, Category
+from models import Product, Category, Manufacturer, ProductFamily
 
 class AdminAuth(AuthenticationBackend):
     async def login(self, request: Request) -> bool:
