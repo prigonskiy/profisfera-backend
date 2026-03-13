@@ -39,6 +39,7 @@ admin = Admin(app, engine, authentication_backend=authentication_backend, templa
 admin.add_view(CategoryAdmin) # <--- ДОБАВИЛИ КАТЕГОРИИ
 admin.add_view(ManufacturerAdmin)
 admin.add_view(ProductAdmin)
+admin.add_view(ProductFamilyAdmin)
 
 @app.get("/api/admin/categories/{cat_id}")
 def get_category_info_model(cat_id: int):
@@ -147,6 +148,13 @@ def get_products():
         item["partNumber"] = p.sku # Транслируем артикул для фронтенда
         item["brand"] = p.manufacturer.name if p.manufacturer else "Без бренда"
         item["price"] = p.price
+        # МАГИЯ ДВУХУРОВНЕВОЙ ГРУППИРОВКИ
+        if p.family:
+            item["groupId"] = str(p.family.id)
+            item["groupFamilyName"] = p.family.name
+            
+        if p.optionName:
+            item["optionName"] = p.optionName
         
         # Собираем путь категорий
         if p.category:

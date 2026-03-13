@@ -367,6 +367,13 @@ class CategoryAdmin(ModelView, model=Category):
     name_plural = "Категории"
     icon = "fa-solid fa-folder-tree"
     form_overrides = dict(info_model_json=InfoModelBuilderField)
+    
+class ProductFamilyAdmin(ModelView, model=ProductFamily):
+    column_list = [ProductFamily.id, ProductFamily.name]
+    column_searchable_list = [ProductFamily.name]
+    name = "Семейство (Группа)"
+    name_plural = "Семейства товаров"
+    icon = "fa-solid fa-layer-group"
 
 class ManufacturerAdmin(ModelView, model=Manufacturer):
     column_list = [Manufacturer.id, Manufacturer.logo, Manufacturer.name, Manufacturer.website]
@@ -397,7 +404,7 @@ class ManufacturerAdmin(ModelView, model=Manufacturer):
                 data.pop("logo", None)
 
 class ProductAdmin(ModelView, model=Product):
-    column_list = [Product.id, Product.images_json, Product.name, Product.category, Product.manufacturer, Product.price]
+    column_list = [Product.id, Product.images_json, Product.name, Product.category, Product.manufacturer, Product.family, Product.optionName, Product.price]
     column_sortable_list = [Product.id, Product.name, Product.price]
     column_searchable_list = [Product.name, Product.sku]
     
