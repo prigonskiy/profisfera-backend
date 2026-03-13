@@ -419,71 +419,71 @@ def admin_excel_dashboard():
             .btn-green:hover {{ background: #27ae60; }}
             .divider {{ height: 1px; background: #ecf0f1; margin: 25px 0; }}
             #status {{ margin-top: 15px; font-weight: bold; text-align: center; color: #e67e22; }}
-        </head>
-        <body>
-            <div class="card">
-                <h2>📊 Менеджер Excel</h2>
-                <label>1. Выберите категорию:</label>
-                <select id="catSelect">
-                    <option value="">-- Нажмите для выбора --</option>
-                    {options}
-                </select>
-                
-                <div class="divider"></div>
-                
-                <label>2. Выгрузить данные:</label>
-                <button class="btn-blue" onclick="downloadExcel()">📥 Скачать шаблон с товарами</button>
-                <p style="font-size: 12px; color: #7f8c8d; margin-top: -5px; margin-bottom: 20px;">* Скачает все товары категории со столбцами из её инфомодели.</p>
-                
-                <div class="divider"></div>
-                
-                <label>3. Загрузить изменения:</label>
-                <input type="file" id="excelFile" accept=".xlsx">
-                <button class="btn-green" onclick="uploadExcel()">📤 Синхронизировать с базой</button>
-                <div id="status"></div>
-            </div>
+        </style> </head>
+    <body>
+        <div class="card">
+            <h2>📊 Менеджер Excel</h2>
+            <label>1. Выберите категорию:</label>
+            <select id="catSelect">
+                <option value="">-- Нажмите для выбора --</option>
+                {options}
+            </select>
+            
+            <div class="divider"></div>
+            
+            <label>2. Выгрузить данные:</label>
+            <button class="btn-blue" onclick="downloadExcel()">📥 Скачать шаблон с товарами</button>
+            <p style="font-size: 12px; color: #7f8c8d; margin-top: -5px; margin-bottom: 20px;">* Скачает все товары категории со столбцами из её инфомодели.</p>
+            
+            <div class="divider"></div>
+            
+            <label>3. Загрузить изменения:</label>
+            <input type="file" id="excelFile" accept=".xlsx">
+            <button class="btn-green" onclick="uploadExcel()">📤 Синхронизировать с базой</button>
+            <div id="status"></div>
+        </div>
 
-            <script>
-                function downloadExcel() {{
-                    const catId = document.getElementById('catSelect').value;
-                    if(!catId) return alert('Пожалуйста, выберите категорию!');
-                    window.location.href = `/api/admin/category/${{catId}}/export`;
-                }}
+        <script>
+            function downloadExcel() {{
+                const catId = document.getElementById('catSelect').value;
+                if(!catId) return alert('Пожалуйста, выберите категорию!');
+                window.location.href = `/api/admin/category/${{catId}}/export`;
+            }}
+            
+            async function uploadExcel() {{
+                const catId = document.getElementById('catSelect').value;
+                const fileInput = document.getElementById('excelFile');
                 
-                async function uploadExcel() {{
-                    const catId = document.getElementById('catSelect').value;
-                    const fileInput = document.getElementById('excelFile');
-                    
-                    if(!catId) return alert('Пожалуйста, выберите категорию!');
-                    if(fileInput.files.length === 0) return alert('Пожалуйста, выберите файл!');
-                    
-                    const formData = new FormData();
-                    formData.append('file', fileInput.files[0]);
-                    
-                    document.getElementById('status').style.color = '#e67e22';
-                    document.getElementById('status').innerHTML = '⏳ Обработка данных...';
-                    
-                    try {{
-                        const response = await fetch(`/api/admin/category/${{catId}}/import`, {{
-                            method: 'POST',
-                            body: formData
-                        }});
-                        const result = await response.json();
-                        if(response.ok && result.status === "ok") {{
-                            document.getElementById('status').style.color = '#27ae60';
-                            document.getElementById('status').innerHTML = '✅ ' + result.message;
-                            fileInput.value = ''; // Очищаем поле файла
-                        }} else {{
-                            document.getElementById('status').style.color = '#c0392b';
-                            document.getElementById('status').innerHTML = '❌ Ошибка: ' + (result.message || 'Неизвестная ошибка');
-                        }}
-                    }} catch(e) {{
+                if(!catId) return alert('Пожалуйста, выберите категорию!');
+                if(fileInput.files.length === 0) return alert('Пожалуйста, выберите файл!');
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                document.getElementById('status').style.color = '#e67e22';
+                document.getElementById('status').innerHTML = '⏳ Обработка данных...';
+                
+                try {{
+                    const response = await fetch(`/api/admin/category/${{catId}}/import`, {{
+                        method: 'POST',
+                        body: formData
+                    }});
+                    const result = await response.json();
+                    if(response.ok && result.status === "ok") {{
+                        document.getElementById('status').style.color = '#27ae60';
+                        document.getElementById('status').innerHTML = '✅ ' + result.message;
+                        fileInput.value = '';
+                    }} else {{
                         document.getElementById('status').style.color = '#c0392b';
-                        document.getElementById('status').innerHTML = '❌ Ошибка сети при отправке файла!';
+                        document.getElementById('status').innerHTML = '❌ Ошибка: ' + (result.message || 'Неизвестная ошибка');
                     }}
+                }} catch(e) {{
+                    document.getElementById('status').style.color = '#c0392b';
+                    document.getElementById('status').innerHTML = '❌ Ошибка сети при отправке файла!';
                 }}
-            </script>
-        </body>
+            }}
+        </script>
+    </body>
     </html>
     """
     return HTMLResponse(content=html)
