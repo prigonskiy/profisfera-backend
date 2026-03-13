@@ -133,7 +133,7 @@ def get_products():
     products = db.query(Product).all()
     
     result = []
-    DOMAIN = "https://185.185.71.149" # При локальном тесте можно закомментировать использование DOMAIN ниже
+    DOMAIN = "https://185.185.71.149.nip.io" # При локальном тесте можно закомментировать использование DOMAIN ниже
     
     for p in products:
         item = {} # Создаем с чистого листа, без other_data
